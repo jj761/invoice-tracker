@@ -52,7 +52,7 @@ class Invoice extends Model
     protected function subtotal(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->items->sum(fn (InvoiceItem $item) => $item->quantity * $item->unit_price),
+            get: fn () => $this->items->sum(fn (InvoiceItem $item) => $item->line_total),
         );
     }
 
@@ -94,5 +94,10 @@ class Invoice extends Model
         return Attribute::make(
             get: fn () => $this->grand_total - $this->amount_paid,
         );
+    }
+
+    public function overdueLogs(): HasMany
+    {
+        return $this->hasMany(OverdueLog::class);
     }
 }
