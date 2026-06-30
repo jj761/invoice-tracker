@@ -64,7 +64,14 @@ class InvoiceController extends Controller
     public function update(InvoiceRequest $request, Invoice $invoice): RedirectResponse
     {
         $data = $request->safe()->except('items');
-        $items = $request->validated()['items'];
+
+        $hasPayments = $invoice->payments()->exists();
+
+        if ($hasPayments) {
+            $data['client_id'] = $invoice->client_id;
+        }
+
+        $items = $hasPayments ? null : $request->validated()['items'];
 
         try {
             $this->invoiceService->update($invoice, $data, $items);
