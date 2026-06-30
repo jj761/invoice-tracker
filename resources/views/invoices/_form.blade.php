@@ -25,7 +25,7 @@ if (old('items')) {
 
 <div class="mb-3">
     <label class="form-label">Client <span class="text-danger">*</span></label>
-    <select name="client_id" class="form-select @error('client_id') is-invalid @enderror">
+    <select name="client_id" class="form-select @error('client_id') is-invalid @enderror" @disabled($itemsLocked)>
         <option value="">Select a client</option>
         @foreach ($clients as $client)
             <option value="{{ $client->id }}" @selected((int) old('client_id', $invoice->client_id ?? '') === $client->id)>
@@ -33,6 +33,9 @@ if (old('items')) {
             </option>
         @endforeach
     </select>
+    @if ($itemsLocked)
+        <input type="hidden" name="client_id" value="{{ $invoice->client_id }}">
+    @endif
     @error('client_id')
         <div class="invalid-feedback">{{ $message }}</div>
     @enderror
@@ -162,22 +165,19 @@ if (old('items')) {
                 <td class="text-end" id="calc-total">0.00</td>
             </tr>
         </table>
-        <p class="text-muted small">
-            These totals are for preview only. The server always recalculates authoritative values on save.
-        </p>
     </div>
 </div>
 
-@push('scripts')
-    <script>
-        (function() {
-            const itemsBody = document.getElementById('items-body');
-            const addRowBtn = document.getElementById('add-row');
-            const taxInput = document.getElementById('tax_percent');
-            let rowIndex = itemsBody.querySelectorAll('.item-row').length;
 
-            function rowTemplate(index) {
-                return `
+<script>
+    (function() {
+        const itemsBody = document.getElementById('items-body');
+        const addRowBtn = document.getElementById('add-row');
+        const taxInput = document.getElementById('tax_percent');
+        let rowIndex = itemsBody.querySelectorAll('.item-row').length;
+
+        function rowTemplate(index) {
+            return `
             <tr class="item-row">
                 <td>
                     <input type="text" name="items[${index}][description]" class="form-control">
@@ -194,53 +194,52 @@ if (old('items')) {
                 </td>
             </tr>
         `;
-            }
+        }
 
-            function recalculate() {
-                let subtotal = 0;
-                itemsBody.querySelectorAll('.item-row').forEach((row) => {
-                    const qty = parseFloat(row.querySelector('.item-quantity').value) || 0;
-                    const price = parseFloat(row.querySelector('.item-unit-price').value) || 0;
-                    const lineTotal = qty * price;
-                    row.querySelector('.item-line-total').textContent = lineTotal.toFixed(2);
-                    subtotal += lineTotal;
-                });
-                const taxPercent = parseFloat(taxInput.value) || 0;
-                const tax = subtotal * (taxPercent / 100);
-                const total = subtotal + tax;
-                document.getElementById('calc-subtotal').textContent = subtotal.toFixed(2);
-                document.getElementById('calc-tax').textContent = tax.toFixed(2);
-                document.getElementById('calc-total').textContent = total.toFixed(2);
-            }
-
-            if (addRowBtn) {
-                addRowBtn.addEventListener('click', () => {
-                    itemsBody.insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
-                    rowIndex++;
-                    recalculate();
-                });
-            }
-
-            itemsBody.addEventListener('click', (e) => {
-                if (e.target.classList.contains('remove-row')) {
-                    const rows = itemsBody.querySelectorAll('.item-row');
-                    if (rows.length > 1) {
-                        e.target.closest('.item-row').remove();
-                        recalculate();
-                    }
-                }
+        function recalculate() {
+            let subtotal = 0;
+            itemsBody.querySelectorAll('.item-row').forEach((row) => {
+                const qty = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const price = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+                const lineTotal = qty * price;
+                row.querySelector('.item-line-total').textContent = lineTotal.toFixed(2);
+                subtotal += lineTotal;
             });
+            const taxPercent = parseFloat(taxInput.value) || 0;
+            const tax = subtotal * (taxPercent / 100);
+            const total = subtotal + tax;
+            document.getElementById('calc-subtotal').textContent = subtotal.toFixed(2);
+            document.getElementById('calc-tax').textContent = tax.toFixed(2);
+            document.getElementById('calc-total').textContent = total.toFixed(2);
+        }
 
-            itemsBody.addEventListener('input', (e) => {
-                if (e.target.classList.contains('item-quantity') || e.target.classList.contains(
-                        'item-unit-price')) {
+        if (addRowBtn) {
+            addRowBtn.addEventListener('click', () => {
+                itemsBody.insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
+                rowIndex++;
+                recalculate();
+            });
+        }
+
+        itemsBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-row')) {
+                const rows = itemsBody.querySelectorAll('.item-row');
+                if (rows.length > 1) {
+                    e.target.closest('.item-row').remove();
                     recalculate();
                 }
-            });
+            }
+        });
 
-            taxInput.addEventListener('input', recalculate);
+        itemsBody.addEventListener('input', (e) => {
+            if (e.target.classList.contains('item-quantity') || e.target.classList.contains(
+                    'item-unit-price')) {
+                recalculate();
+            }
+        });
 
-            recalculate();
-        })();
-    </script>
-@endpush
+        taxInput.addEventListener('input', recalculate);
+
+        recalculate();
+    })();
+</script>
