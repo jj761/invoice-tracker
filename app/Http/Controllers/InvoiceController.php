@@ -21,11 +21,9 @@ class InvoiceController extends Controller
                 $request->get('sort', 'created_at'),
                 $request->get('direction', 'desc')
             );
-
         if ($request->filled('status')) {
             $query->where('status', $request->get('status'));
         }
-
         $invoices = $query->paginate(15)->withQueryString();
 
         return view('invoices.index', compact('invoices'));
@@ -58,7 +56,7 @@ class InvoiceController extends Controller
     public function edit(Invoice $invoice): View
     {
         $clients = Client::orderBy('name')->get();
-        $invoice->load('items');
+        $invoice->load('items', 'payments');
 
         return view('invoices.edit', compact('invoice', 'clients'));
     }
@@ -67,7 +65,13 @@ class InvoiceController extends Controller
     {
         $data = $request->safe()->except('items');
         $items = $request->validated()['items'];
-        $this->invoiceService->update($invoice, $data, $items);
+
+        try {
+            $this->invoiceService->update($invoice, $data, $items);
+        } catch (\RuntimeException $e) {
+            return back()->withInput()
+                ->with('error', 'Cannot update line items: a payment has already been recorded against this invoice.');
+        }
 
         return redirect()->route('invoices.show', $invoice)
             ->with('success', 'Invoice updated successfully.');

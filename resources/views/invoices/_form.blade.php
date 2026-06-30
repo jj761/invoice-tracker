@@ -17,6 +17,10 @@ if (old('items')) {
 } else {
     $initialItems = [['description' => '', 'quantity' => '', 'unit_price' => '']];
     }
+
+    // Line items become locked (read-only) once any payment exists against the invoice —
+    // InvoiceService::update() enforces this server-side; this is the matching client-facing warning.
+    $itemsLocked = isset($invoice) && $invoice->payments->isNotEmpty();
 @endphp
 
 <div class="mb-3">
@@ -78,6 +82,13 @@ if (old('items')) {
     <div class="alert alert-danger py-2">{{ $message }}</div>
 @enderror
 
+@if ($itemsLocked)
+    <div class="alert alert-warning py-2">
+        Line items cannot be changed because a payment has already been recorded against this invoice.
+        They are shown below for reference only.
+    </div>
+@endif
+
 <div class="table-responsive">
     <table class="table" id="items-table">
         <thead>
@@ -86,7 +97,9 @@ if (old('items')) {
                 <th style="width: 15%">Quantity</th>
                 <th style="width: 15%">Unit Price</th>
                 <th style="width: 15%">Line Total</th>
-                <th style="width: 10%"></th>
+                @unless ($itemsLocked)
+                    <th style="width: 10%"></th>
+                @endunless
             </tr>
         </thead>
         <tbody id="items-body">
@@ -95,7 +108,7 @@ if (old('items')) {
                     <td>
                         <input type="text" name="items[{{ $index }}][description]"
                             class="form-control @error('items.' . $index . '.description') is-invalid @enderror"
-                            value="{{ $item['description'] }}">
+                            value="{{ $item['description'] }}" @if ($itemsLocked) readonly @endif>
                         @error('items.' . $index . '.description')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -103,7 +116,7 @@ if (old('items')) {
                     <td>
                         <input type="number" min="1" step="1" name="items[{{ $index }}][quantity]"
                             class="form-control item-quantity @error('items.' . $index . '.quantity') is-invalid @enderror"
-                            value="{{ $item['quantity'] }}">
+                            value="{{ $item['quantity'] }}" @if ($itemsLocked) readonly @endif>
                         @error('items.' . $index . '.quantity')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -112,22 +125,26 @@ if (old('items')) {
                         <input type="number" min="0" step="0.01"
                             name="items[{{ $index }}][unit_price]"
                             class="form-control item-unit-price @error('items.' . $index . '.unit_price') is-invalid @enderror"
-                            value="{{ $item['unit_price'] }}">
+                            value="{{ $item['unit_price'] }}" @if ($itemsLocked) readonly @endif>
                         @error('items.' . $index . '.unit_price')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </td>
                     <td class="item-line-total align-middle">0.00</td>
-                    <td class="align-middle">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-row">&times;</button>
-                    </td>
+                    @unless ($itemsLocked)
+                        <td class="align-middle">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-row">&times;</button>
+                        </td>
+                    @endunless
                 </tr>
             @endforeach
         </tbody>
     </table>
 </div>
 
-<button type="button" id="add-row" class="btn btn-sm btn-outline-primary mb-3">Add Line</button>
+@unless ($itemsLocked)
+    <button type="button" id="add-row" class="btn btn-sm btn-outline-primary mb-3">Add Line</button>
+@endunless
 
 <div class="row justify-content-end">
     <div class="col-md-4">
@@ -196,11 +213,13 @@ if (old('items')) {
                 document.getElementById('calc-total').textContent = total.toFixed(2);
             }
 
-            addRowBtn.addEventListener('click', () => {
-                itemsBody.insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
-                rowIndex++;
-                recalculate();
-            });
+            if (addRowBtn) {
+                addRowBtn.addEventListener('click', () => {
+                    itemsBody.insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
+                    rowIndex++;
+                    recalculate();
+                });
+            }
 
             itemsBody.addEventListener('click', (e) => {
                 if (e.target.classList.contains('remove-row')) {
